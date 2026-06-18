@@ -1,0 +1,18 @@
+# Core ML / NLP
+sentence-transformers>=2.7.0
+faiss-cpu>=1.8.0
+scikit-learn>=1.4.0
+numpy>=1.26.0
+pandas>=2.2.0
+
+# LLM / Orchestration
+langchain>=0.2.0
+langchain-openai>=0.1.0
+openai>=1.30.0
+
+# UI
+streamlit>=1.35.0
+
+# Utilities
+python-dotenv>=1.0.0
+tqdm>=4.66.0
