@@ -7,11 +7,27 @@ pandas>=2.2.0
 
 # LLM / Orchestration
 langchain>=0.2.0
+langchain-core>=0.2.0
 langchain-openai>=0.1.0
 openai>=1.30.0
 
+# Pydantic
+pydantic>=2.0.0
+
 # UI
 streamlit>=1.35.0
+plotly>=5.20.0
+
+# Terminal output
+rich>=13.0.0
+
+# REST API
+fastapi>=0.111.0
+uvicorn[standard]>=0.30.0
+
+# Testing
+pytest>=8.0.0
+httpx>=0.27.0
 
 # Utilities
 python-dotenv>=1.0.0
