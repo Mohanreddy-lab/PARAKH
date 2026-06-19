@@ -26,7 +26,7 @@ except ImportError:
 
 
 CSV_COLUMNS = [
-    "rank", "candidate_id", "final_score", "llm_score", "confidence",
+    "rank", "candidate_id", "score_100", "final_score", "llm_score", "confidence",
     "hidden_gem", "reason", "skill_score", "seniority_score",
     "activity_score", "composite_score", "embedding_score",
 ]
@@ -44,6 +44,7 @@ def _to_row(rank: int, candidate: dict) -> dict:
     return {
         "rank":             rank,
         "candidate_id":     _get_id(candidate),
+        "score_100":        round(float(candidate.get("score_100",        0.0)), 1),
         "final_score":      round(float(candidate.get("final_score",      0.0)), 4),
         "llm_score":        candidate.get("llm_score",      "N/A"),
         "confidence":       candidate.get("confidence",     "N/A"),
@@ -126,16 +127,17 @@ def _print_summary_rich(ranked: List[Dict], top_n: int) -> None:
         header_style="bold cyan",
         border_style="cyan",
         highlight=True,
+        expand=False,
     )
-    table.add_column("#",          style="dim",     width=4,  justify="right")
-    table.add_column("ID",                           width=14)
-    table.add_column("Title",                        width=26)
-    table.add_column("Score",      justify="right",  width=7)
-    table.add_column("LLM",        justify="right",  width=5)
-    table.add_column("Conf",       justify="center", width=8)
-    table.add_column("Skill",      justify="right",  width=6)
-    table.add_column("Gem",        justify="center", width=4)
-    table.add_column("Reason",                       min_width=40)
+    table.add_column("#",      style="dim",    width=3,  justify="right")
+    table.add_column("ID",                     width=12)
+    table.add_column("Title",                  width=22)
+    table.add_column("Score",  justify="right",width=6)
+    table.add_column("LLM",   justify="right", width=4)
+    table.add_column("Conf",  justify="center",width=7)
+    table.add_column("Skill", justify="right", width=6)
+    table.add_column("Gem",   justify="center",width=3)
+    table.add_column("Reason",                 min_width=30, no_wrap=False)
 
     for i, c in enumerate(top, 1):
         is_gem    = c.get("hidden_gem", False)
@@ -145,14 +147,14 @@ def _print_summary_rich(ranked: List[Dict], top_n: int) -> None:
 
         table.add_row(
             str(i),
-            _get_id(c)[:13],
-            str(c.get("title", c.get("current_role", "")))[:25],
+            _get_id(c)[:11],
+            str(c.get("title", c.get("current_role", "")))[:21],
             f"{score:.3f}",
             str(c.get("llm_score", "-")),
-            f"[{_conf_color(conf)}]{conf[:6]}[/]",
+            f"[{_conf_color(conf)}]{conf[:4]}[/]",
             f"{c.get('skill_score', 0):.0%}",
             "*" if is_gem else "",
-            str(c.get("reason", ""))[:80],
+            str(c.get("reason", ""))[:90],
             style=row_style,
         )
 

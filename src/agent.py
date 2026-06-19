@@ -173,7 +173,8 @@ def run_pipeline(
     s1_key    = f"parsed_jd_{jd_hash}"
     parsed_jd = None if force else _cache_load(cache_dir, s1_key)
     if parsed_jd is None:
-        print("[Stage 1] Parsing JD with GPT-4o...")
+        model_tag = os.getenv("PARAKH_MODEL", "llama3.2")
+        print(f"[Stage 1] Parsing JD with {os.getenv('LLM_PROVIDER','ollama')}:{model_tag}...")
         parsed_jd = parse_jd(jd_text)
         _cache_save(cache_dir, s1_key, parsed_jd)
         save_parsed_jd(parsed_jd, data_dir / "parsed_jd.json")

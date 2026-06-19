@@ -137,7 +137,7 @@ with st.sidebar:
 st.title("PARAKH — Intelligent Candidate Ranking")
 st.caption("Understands what the role really needs, ranks by evidence, explains every choice.")
 
-tab_run, tab_results, tab_chart = st.tabs(["Run Pipeline", "Results", "Charts"])
+tab_run, tab_jd, tab_results, tab_chart = st.tabs(["Run Pipeline", "Parsed JD", "Results", "Charts"])
 
 # ── Tab 1: Inputs ─────────────────────────────────────────────────────────────
 
@@ -235,7 +235,8 @@ if run_btn:
         progress_bar.progress(0.60)
 
         # Stage 4 — streaming
-        status_area.info(f"Stage 4/4: GPT-4o reranking top {rerank_n} candidates (live)...")
+        model_tag = os.getenv("PARAKH_MODEL", "llama3.2")
+        status_area.info(f"Stage 4/4: LLM reranking top {rerank_n} candidates (live, model={model_tag})...")
         results_area = st.empty()
         results      = []
 
@@ -276,7 +277,38 @@ if run_btn:
             "See Results and Charts tabs."
         )
 
-# ── Tab 2: Results ────────────────────────────────────────────────────────────
+# ── Tab 2: Parsed JD ─────────────────────────────────────────────────────────
+
+with tab_jd:
+    parsed_jd_stored = st.session_state.get("parsed_jd")
+    if not parsed_jd_stored:
+        st.info("Run the pipeline first — the parsed JD will appear here.")
+    else:
+        p = parsed_jd_stored
+        st.subheader(f"{p.role_title}  ·  {p.seniority.upper()}")
+        st.caption(p.summary)
+
+        col_r, col_i, col_l = st.columns(3)
+        with col_r:
+            st.markdown("**Required skills**")
+            for s in p.explicit_skills:
+                badge = ":red[required]" if s.importance == "required" else ":orange[preferred]"
+                st.markdown(f"- {s.name}  {badge}")
+        with col_i:
+            st.markdown("**Implied skills**")
+            for s in p.implied_skills:
+                st.markdown(f"- {s.name}")
+        with col_l:
+            st.markdown("**Latent needs**")
+            for n in p.latent_needs:
+                st.markdown(f"- _{n}_")
+
+        st.divider()
+        with st.expander("Raw JSON"):
+            st.json(p.model_dump())
+
+
+# ── Tab 3: Results ────────────────────────────────────────────────────────────
 
 with tab_results:
     results = st.session_state.get("results", [])
@@ -313,7 +345,7 @@ with tab_results:
             mime="text/csv",
         )
 
-# ── Tab 3: Charts ─────────────────────────────────────────────────────────────
+# ── Tab 4: Charts ─────────────────────────────────────────────────────────────
 
 with tab_chart:
     results = st.session_state.get("results", [])
