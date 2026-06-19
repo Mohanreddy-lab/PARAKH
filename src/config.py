@@ -17,11 +17,10 @@ def get_weights() -> dict:
         "activity":  w_a / total,
     }
 
-EMBED_MODEL  = os.getenv("PARAKH_EMBED_MODEL",  "all-MiniLM-L6-v2")
-RECALL_K     = int(os.getenv("PARAKH_RECALL_K", 200))
-SCORE_N      = int(os.getenv("PARAKH_SCORE_N",  50))
-RERANK_N     = int(os.getenv("PARAKH_RERANK_N", 50))
-OPENAI_MODEL = os.getenv("PARAKH_OPENAI_MODEL", "gpt-4o")
+EMBED_MODEL = os.getenv("PARAKH_EMBED_MODEL", "all-MiniLM-L6-v2")
+RECALL_K    = int(os.getenv("PARAKH_RECALL_K", 200))
+SCORE_N     = int(os.getenv("PARAKH_SCORE_N",  50))
+RERANK_N    = int(os.getenv("PARAKH_RERANK_N", 50))
 
 MAX_PROFILE_CHARS = int(os.getenv("PARAKH_PROFILE_CHARS", 900))
 BLEND_COMPOSITE   = float(os.getenv("PARAKH_BLEND_COMPOSITE", 0.40))

@@ -86,17 +86,31 @@ class TestSaveLoadParsedJD:
 
 class TestParseJDMocked:
     def test_parse_jd_calls_llm(self):
-        expected = _make_parsed_jd()
-        with patch("jd_parser.ChatOpenAI") as mock_llm_cls:
+        import json
+        fake_json = json.dumps({
+            "role_title": "Senior Data Engineer",
+            "seniority": "senior",
+            "required_skills": ["python", "apache spark", "aws"],
+            "implied_skills": ["sql", "linux"],
+            "latent_needs": ["owns pipelines end-to-end"],
+            "summary": "Senior data engineer to build AWS pipelines.",
+        })
+        mock_response = MagicMock()
+        mock_response.content = fake_json
+
+        mock_chain = MagicMock()
+        mock_chain.invoke.return_value = mock_response
+
+        with patch("jd_parser.get_llm") as mock_get_llm:
             mock_llm = MagicMock()
-            mock_llm_cls.return_value = mock_llm
-            mock_structured = MagicMock()
-            mock_llm.with_structured_output.return_value = mock_structured
-            mock_chain = MagicMock()
-            mock_chain.invoke.return_value = expected
+            mock_get_llm.return_value = mock_llm
 
             with patch("jd_parser.ChatPromptTemplate") as mock_prompt:
-                mock_prompt.from_messages.return_value.__or__ = lambda s, o: mock_chain
-                with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
-                    from jd_parser import parse_jd
-                    result = parse_jd(SAMPLE_JD)
+                mock_pt = MagicMock()
+                mock_prompt.from_messages.return_value = mock_pt
+                mock_pt.__or__ = lambda s, o: mock_chain
+
+                from jd_parser import parse_jd
+                result = parse_jd(SAMPLE_JD)
+                # Verify it parsed into a ParsedJD
+                assert result.seniority == "senior"

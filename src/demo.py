@@ -106,14 +106,12 @@ def _render_card(rank: int, c: dict) -> None:
 with st.sidebar:
     st.title("PARAKH Settings")
 
-    api_key = st.text_input(
-        "OpenAI API Key",
-        value=os.getenv("OPENAI_API_KEY", ""),
-        type="password",
-        help="Required for JD parsing and candidate reranking.",
+    model_name = st.text_input(
+        "Ollama model",
+        value=os.getenv("PARAKH_MODEL", "llama3.2"),
+        help="Any model you have pulled: llama3.2, mistral:7b, etc.",
     )
-    if api_key:
-        os.environ["OPENAI_API_KEY"] = api_key
+    os.environ["PARAKH_MODEL"] = model_name
 
     st.divider()
     st.subheader("Signal Weights")
@@ -186,10 +184,6 @@ with tab_run:
 # ── Pipeline execution ────────────────────────────────────────────────────────
 
 if run_btn:
-    if not os.getenv("OPENAI_API_KEY"):
-        st.error("Set your OpenAI API key in the sidebar.")
-        st.stop()
-
     if profiles is None:
         st.error("Upload profiles or use demo profiles.")
         st.stop()

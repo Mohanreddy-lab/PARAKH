@@ -1,9 +1,8 @@
 """
 rerank.py — Stage 4: Honest LLM Rerank
 
-Scores top candidates with GPT-4o using structured output (Pydantic).
-Chain-of-thought reasoning is in the system prompt; structured output
-ensures clean JSON every time.
+Scores top candidates with the local LLM (Ollama by default).
+Uses a JSON prompt — works offline with any model you have pulled.
 
 Confidence weighting: low-confidence scores drift toward the composite
 (safe default) rather than overriding it.
@@ -21,29 +20,29 @@ import time
 from typing import List, Dict, Generator
 
 from tqdm import tqdm
-from pydantic import BaseModel, Field
 
 sys.path.insert(0, os.path.dirname(__file__))
 from config import (
     CONFIDENCE_WEIGHT, BLEND_COMPOSITE, BLEND_LLM,
-    LLM_RETRIES, OPENAI_MODEL, MAX_PROFILE_CHARS, RERANK_N,
+    LLM_RETRIES, MAX_PROFILE_CHARS, RERANK_N,
 )
+from llm import get_llm
 
 
-class RankResult(BaseModel):
-    llm_score:  int = Field(ge=1, le=10, description="Candidate fit score 1-10")
-    reason:     str = Field(description="One sentence with evidence from the profile. Start with 'Limited evidence:' if thin.")
-    confidence: str = Field(description="'high', 'medium', or 'low'")
+SYSTEM_PROMPT = """You are an honest technical recruiter. Score candidate fit.
 
+Return ONLY a JSON object with exactly these three keys:
+  "llm_score"  : integer 1 to 10
+  "reason"     : one sentence using REAL words from the profile as evidence.
+                 If evidence is thin, start with: "Limited evidence:"
+                 NEVER invent skills or facts not in the profile.
+  "confidence" : "high", "medium", or "low"
 
-SYSTEM_PROMPT = """You are an honest technical recruiter scoring candidate fit for a job.
+high   = clear direct evidence for the score
+medium = some signals, some gaps
+low    = profile lacks information
 
-Rules:
-- llm_score: integer 1-10 based ONLY on evidence present in the profile text.
-- reason: one sentence using REAL words from the profile. If evidence is thin, start with "Limited evidence:"
-- confidence: "high" (clear direct evidence), "medium" (some signals, some gaps), "low" (thin profile).
-
-NEVER invent skills or experiences not stated in the profile."""
+Start your reply with {{ and end with }}. No markdown, no explanation."""
 
 HUMAN_PROMPT = """Job summary:
 {jd_summary}
@@ -51,7 +50,7 @@ HUMAN_PROMPT = """Job summary:
 Candidate profile:
 {profile_text}
 
-Score this candidate."""
+JSON:"""
 
 
 def _make_jd_summary(parsed_jd) -> str:
@@ -97,20 +96,31 @@ def _final_score(composite: float, llm_score: int, confidence: str) -> float:
 
 
 def _get_chain():
-    from dotenv import load_dotenv
-    load_dotenv()
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        raise EnvironmentError("OPENAI_API_KEY not set. Set it in .env or environment.")
-    from langchain_openai import ChatOpenAI
     from langchain_core.prompts import ChatPromptTemplate
-
-    llm = ChatOpenAI(model=OPENAI_MODEL, temperature=0, api_key=api_key)
+    llm    = get_llm()
     prompt = ChatPromptTemplate.from_messages([
         ("system", SYSTEM_PROMPT),
         ("human",  HUMAN_PROMPT),
     ])
-    return prompt | llm.with_structured_output(RankResult)
+    return prompt | llm
+
+
+def _parse_result(raw: str) -> dict:
+    from utils import safe_parse_json
+    fallback = {"llm_score": 5, "reason": "Could not parse model output.", "confidence": "low"}
+    data     = safe_parse_json(raw, fallback)
+
+    score = data.get("llm_score", 5)
+    try:
+        score = max(1, min(10, int(float(score))))
+    except (TypeError, ValueError):
+        score = 5
+
+    return {
+        "llm_score":  score,
+        "reason":     str(data.get("reason",     "No reason provided.")).strip(),
+        "confidence": str(data.get("confidence", "low")).lower(),
+    }
 
 
 def _score_one(candidate: dict, chain, jd_summary: str) -> dict:
@@ -119,15 +129,11 @@ def _score_one(candidate: dict, chain, jd_summary: str) -> dict:
 
     for attempt in range(LLM_RETRIES + 1):
         try:
-            result: RankResult = chain.invoke({
+            response = chain.invoke({
                 "jd_summary":   jd_summary,
                 "profile_text": profile_text,
             })
-            llm_data = {
-                "llm_score":  result.llm_score,
-                "reason":     result.reason,
-                "confidence": result.confidence.lower(),
-            }
+            llm_data = _parse_result(response.content)
             break
         except Exception as exc:
             last_exc = exc
@@ -176,7 +182,8 @@ def rerank_stream(
     chain      = _get_chain()
     jd_summary = _make_jd_summary(parsed_jd)
 
-    print(f"[rerank] Scoring {len(batch)} candidates with {OPENAI_MODEL}")
+    model = os.getenv("PARAKH_MODEL", "llama3.2")
+    print(f"[rerank] Scoring {len(batch)} candidates with {model}")
     print(f"         Confidence weights: high=1.0, medium=0.70, low=0.30\n")
 
     for candidate in tqdm(batch, desc="Reranking", unit="candidate"):

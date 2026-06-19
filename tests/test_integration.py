@@ -7,10 +7,17 @@ from unittest.mock import patch, MagicMock
 from pathlib import Path
 import pytest
 
+import json
 from jd_parser import ParsedJD, Skill
 from scoring   import score_candidates
-from rerank    import RankResult, rerank_candidates
+from rerank    import rerank_candidates
 from output    import write_output, normalize_scores
+
+
+def _mock_response(score=8, reason="Strong match.", confidence="high"):
+    r = MagicMock()
+    r.content = json.dumps({"llm_score": score, "reason": reason, "confidence": confidence})
+    return r
 
 
 @pytest.fixture
@@ -86,9 +93,7 @@ class TestScoringToRerankPipeline:
         scored = score_candidates(full_profiles, full_jd)
 
         mock_chain = MagicMock()
-        mock_chain.invoke.return_value = RankResult(
-            llm_score=8, reason="Strong match.", confidence="high"
-        )
+        mock_chain.invoke.return_value = _mock_response()
         with patch("rerank._get_chain", return_value=mock_chain):
             ranked = rerank_candidates(scored, full_jd, top_n=4)
 
@@ -102,10 +107,10 @@ class TestScoringToRerankPipeline:
 
         mock_chain = MagicMock()
         mock_chain.invoke.side_effect = [
-            RankResult(llm_score=9,  reason="Top.",    confidence="high"),
-            RankResult(llm_score=6,  reason="Mid.",    confidence="medium"),
-            RankResult(llm_score=3,  reason="Weak.",   confidence="low"),
-            RankResult(llm_score=10, reason="Great.",  confidence="high"),
+            _mock_response(9,  "Top.",   "high"),
+            _mock_response(6,  "Mid.",   "medium"),
+            _mock_response(3,  "Weak.",  "low"),
+            _mock_response(10, "Great.", "high"),
         ]
         with patch("rerank._get_chain", return_value=mock_chain):
             ranked = rerank_candidates(scored, full_jd, top_n=4)
@@ -118,9 +123,7 @@ class TestScoringToRerankPipeline:
         scored = score_candidates(full_profiles, full_jd)
 
         mock_chain = MagicMock()
-        mock_chain.invoke.return_value = RankResult(
-            llm_score=7, reason="Test.", confidence="medium"
-        )
+        mock_chain.invoke.return_value = _mock_response(7, "Test.", "medium")
         with patch("rerank._get_chain", return_value=mock_chain):
             ranked = rerank_candidates(scored, full_jd, top_n=4)
 

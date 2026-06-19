@@ -1,12 +1,12 @@
-"""Tests for rerank.py — mocked GPT-4o so no API key needed."""
+"""Tests for rerank.py — mocked LLM so no API key needed."""
 
-import sys, os
+import sys, os, json
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from unittest.mock import patch, MagicMock
 import pytest
 from rerank import (
-    _final_score, _make_jd_summary, _make_profile_text, RankResult,
+    _final_score, _make_jd_summary, _make_profile_text, _parse_result,
     rerank_candidates, rerank_stream,
 )
 
@@ -65,24 +65,27 @@ class TestMakeProfileText:
         assert "Spark"  in text
 
 
-class TestReRankResult:
-    def test_valid_range(self):
-        r = RankResult(llm_score=7, reason="Strong match.", confidence="high")
-        assert 1 <= r.llm_score <= 10
+class TestParseResult:
+    def test_parses_valid_json(self):
+        raw = json.dumps({"llm_score": 8, "reason": "Strong match.", "confidence": "high"})
+        result = _parse_result(raw)
+        assert result["llm_score"]  == 8
+        assert result["confidence"] == "high"
 
-    def test_score_bounds(self):
-        with pytest.raises(Exception):
-            RankResult(llm_score=11, reason="x", confidence="high")
+    def test_clamps_score_to_range(self):
+        raw = json.dumps({"llm_score": 15, "reason": "x", "confidence": "low"})
+        assert _parse_result(raw)["llm_score"] == 10
 
-        with pytest.raises(Exception):
-            RankResult(llm_score=0, reason="x", confidence="high")
+    def test_falls_back_on_garbage(self):
+        result = _parse_result("this is not json at all")
+        assert 1 <= result["llm_score"] <= 10   # fallback default
 
 
 def _make_mock_chain(score=8, reason="Strong evidence.", confidence="high"):
+    mock_response = MagicMock()
+    mock_response.content = json.dumps({"llm_score": score, "reason": reason, "confidence": confidence})
     mock_chain = MagicMock()
-    mock_chain.invoke.return_value = RankResult(
-        llm_score=score, reason=reason, confidence=confidence,
-    )
+    mock_chain.invoke.return_value = mock_response
     return mock_chain
 
 
@@ -119,11 +122,14 @@ class TestReRankCandidatesMocked:
 
     def test_retry_on_failure(self, sample_jd, sample_profiles):
         call_count = [0]
+        ok_response = MagicMock()
+        ok_response.content = json.dumps({"llm_score": 7, "reason": "OK", "confidence": "medium"})
+
         def flaky_invoke(inputs):
             call_count[0] += 1
             if call_count[0] < 2:
                 raise RuntimeError("API timeout")
-            return RankResult(llm_score=7, reason="OK", confidence="medium")
+            return ok_response
 
         mock_chain = MagicMock()
         mock_chain.invoke.side_effect = flaky_invoke
